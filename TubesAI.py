@@ -196,7 +196,7 @@ print("=" * 60)
 #                       mencegah pohon terlalu detail ke data noise
 # random_state=42   → supaya hasil sama tiap dijalankan
 model = DecisionTreeClassifier(
-    criterion='gini',
+    criterion='entropy',
     max_depth=4,
     min_samples_split=5,
     random_state=42
