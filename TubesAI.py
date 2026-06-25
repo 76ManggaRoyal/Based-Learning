@@ -67,8 +67,9 @@ print("=" * 60)
 #     4. Color > Greenish           (blue-green, bluish-green, green)
 #
 #   Setelah lolos syarat defect, cek skor:
-#     Total Cup Points ≥ 85  → Excellent   (SCA: "Outstanding/Excellent")
-#     Total Cup Points ≥ 80  → Very Good   (SCA: "Very Good/Specialty")
+#     Total Cup Points ≥ 90  → Outstanding (SCA: "Outstanding")
+#     Total Cup Points ≥ 85  → Excellent   (SCA: "Excellent")
+#     Total Cup Points ≥ 80  → Very Good   (SCA: "Very Good")
 #     Total Cup Points < 80  → Not Classified
 
 def buat_label_sca(row):
@@ -188,7 +189,7 @@ print("=" * 60)
 # criterion='gini'  → pakai Gini Impurity untuk cari split terbaik
 #                     Gini mengukur seberapa "kotor" sebuah node
 #                     (0 = semua isi satu kelas = murni)
-# max_depth=5       → batas kedalaman pohon
+# max_depth=4       → batas kedalaman pohon
 #                     tanpa batas → pohon terlalu kompleks → overfitting
 #                     (hafal data latih tapi gagal di data baru)
 # min_samples_split=5 → minimal 5 sampel di node untuk bisa di-split lagi
@@ -196,7 +197,7 @@ print("=" * 60)
 # random_state=42   → supaya hasil sama tiap dijalankan
 model = DecisionTreeClassifier(
     criterion='gini',
-    max_depth=5,
+    max_depth=4,
     min_samples_split=5,
     random_state=42
 )
@@ -218,8 +219,7 @@ importance_df = pd.DataFrame({
 }).sort_values('Importance', ascending=False)
 
 for _, row in importance_df.iterrows():
-    bar = '█' * int(row['Importance'] * 50)
-    print(f"  {row['Fitur']:25s}: {row['Importance']:.4f} {bar}")
+    print(f"  {row['Fitur']:25s}: {row['Importance']:.4f}")
 
 
 # ── STEP 6: PREDIKSI & EVALUASI ─────────────────────────────
