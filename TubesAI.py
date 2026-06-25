@@ -4,6 +4,8 @@
 # ============================================================
 
 # ── IMPORT LIBRARY ──────────────────────────────────────────
+from typing import List
+
 import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
@@ -14,7 +16,6 @@ from sklearn.preprocessing import LabelEncoder
 
 # pandas   → manipulasi data (tabel/dataframe)
 # numpy    → operasi numerik
-# matplotlib & seaborn → visualisasi grafik
 # sklearn  → library machine learning utama:
 #   - DecisionTreeClassifier : algoritma Decision Tree nya
 #   - train_test_split       : bagi data train & test
@@ -63,7 +64,7 @@ print("=" * 60)
 #     1. Category One Defects = 0   (nol toleransi cacat primer)
 #     2. Category Two Defects ≤ 5   (maks 5 cacat sekunder)
 #     3. Quakers = 0                (nol toleransi biji mentah)
-#     4. Color > Greenish           (blue-Green, bluish-Green, green)
+#     4. Color > Greenish           (blue-green, bluish-green, green)
 #
 #   Setelah lolos syarat defect, cek skor:
 #     Total Cup Points ≥ 85  → Excellent   (SCA: "Outstanding/Excellent")
@@ -83,7 +84,7 @@ def buat_label_sca(row):
         return 'Not Classified'
     if row['Quakers'] > 0:
         return 'Not Classified'
-    if row['Color'] != 'blue-Green' and row['Color'] != 'bluish-Green' and row['Color'] != 'green':
+    if row['Color'] != 'blue-green' and row['Color'] != 'bluish-green' and row['Color'] != 'green':
         return 'Not Classified'
 
     # Lolos syarat cacat → cek skor cupping
@@ -102,14 +103,9 @@ df['grade_sca'] = df.apply(buat_label_sca, axis=1)
 
 print("\nDistribusi label grade SCA di seluruh dataset:")
 distribusi = df['grade_sca'].value_counts()
-for grade, jumlah in distribusi.items():
+for grade, jumlah in reversed(list(distribusi.items())):
     persen = jumlah / len(df) * 100
     print(f"  {grade:20s}: {jumlah} sampel ({persen:.1f}%)")
-
-# Cek sampel Premium (TCP 75-79.99) — terlalu sedikit untuk dilatih
-premium = df[df['Total Cup Points'].between(75, 79.99)]
-print(f"\nSampel dengan TCP 75-79.99 (Premium): {len(premium)} sampel")
-print("→ Terlalu sedikit, sudah masuk 'Not Classified' di atas")
 
 
 # ── STEP 3: PERSIAPAN DATA X DAN y ──────────────────────────
@@ -125,12 +121,13 @@ order = [
 # menggunakan len(order) - 1, blue-green = 8 sedangkan brownish = 1
 mapping = {name.strip().lower(): len(order) - i for i, name in enumerate(order)}
 
+# Mengubah teks warna biji menjadi angka
 def encode_color_series(s):
     return s.astype(str).str.strip().str.lower().map(mapping).fillna(0).astype(int)
 
 # X = semua fitur input (15 kolom) → yang "dilihat" model untuk belajar
 X = df[FITUR]
-X['Color'] = encode_color_series(X['Color'])
+X['Color_Encoded'] = encode_color_series(X['Color'])
 
 # y = label grade yang baru dibuat → yang mau diprediksi model
 y = df['grade_sca']
@@ -151,6 +148,10 @@ print("\n" + "=" * 60)
 print("STEP 4: SPLIT DATA TRAIN (80%) DAN TEST (20%)")
 print("=" * 60)
 
+# Value di kolom Color diganti dengan Color_Encoded
+X = X.drop(columns=['Color'])
+X.rename(columns={'Color_Encoded': 'Color'}, inplace=True)
+
 # train_test_split → fungsi sklearn untuk bagi data secara acak
 # test_size=0.2    → 20% untuk test, 80% untuk train
 # random_state=42  → angka seed supaya hasil split selalu sama tiap dijalankan
@@ -169,11 +170,11 @@ print(f"Sampel untuk TRAINING : {len(X_train)} ({len(X_train)/len(X)*100:.0f}%)"
 print(f"Sampel untuk TESTING  : {len(X_test)} ({len(X_test)/len(X)*100:.0f}%)")
 
 print("\nDistribusi kelas di Training set:")
-for grade, jml in y_train.value_counts().items():
+for grade, jml in reversed(list(y_train.value_counts().items())):
     print(f"  {grade:20s}: {jml} sampel")
 
 print("\nDistribusi kelas di Testing set:")
-for grade, jml in y_test.value_counts().items():
+for grade, jml in reversed(list(y_test.value_counts().items())):
     print(f"  {grade:20s}: {jml} sampel")
 # Cek: proporsinya harus mirip antara train dan test (hasil stratify)
 
@@ -187,7 +188,7 @@ print("=" * 60)
 # criterion='gini'  → pakai Gini Impurity untuk cari split terbaik
 #                     Gini mengukur seberapa "kotor" sebuah node
 #                     (0 = semua isi satu kelas = murni)
-# max_depth=4       → batas kedalaman pohon
+# max_depth=5       → batas kedalaman pohon
 #                     tanpa batas → pohon terlalu kompleks → overfitting
 #                     (hafal data latih tapi gagal di data baru)
 # min_samples_split=5 → minimal 5 sampel di node untuk bisa di-split lagi
@@ -195,7 +196,7 @@ print("=" * 60)
 # random_state=42   → supaya hasil sama tiap dijalankan
 model = DecisionTreeClassifier(
     criterion='gini',
-    max_depth=4,
+    max_depth=5,
     min_samples_split=5,
     random_state=42
 )
@@ -233,7 +234,7 @@ y_pred = model.predict(X_test)
 # Akurasi keseluruhan
 akurasi = accuracy_score(y_test, y_pred)
 print(f"\nAkurasi keseluruhan: {akurasi:.4f} ({akurasi*100:.2f}%)")
-print("→ Artinya dari setiap 100 sampel test, model benar sebanyak itu")
+# Dari setiap 100 sampel test, model benar sebanyak itu
 
 # Classification report → detail per kelas
 print("\nLaporan per kelas:")
@@ -243,79 +244,10 @@ print(classification_report(y_test, y_pred))
 # F1-score  : rata-rata harmonis precision & recall (0-1, makin tinggi makin baik)
 # Support   : jumlah sampel asli per kelas di test set
 
-
-# # ── STEP 7: VISUALISASI ─────────────────────────────────────
-# print("\n" + "=" * 60)
-# print("STEP 7: MEMBUAT VISUALISASI")
-# print("=" * 60)
-
-# fig = plt.figure(figsize=(28, 20))
-# fig.patch.set_facecolor('#FAFAFA')
-
-# # ── 7A: Pohon Keputusan ──────────────────────────────────────
-# ax1 = fig.add_subplot(2, 2, (1, 2))  # baris atas, span 2 kolom
-# plot_tree(
-#     model,
-#     feature_names=FITUR,
-#     class_names=model.classes_,
-#     filled=True,          # warnai node berdasarkan kelas mayoritas
-#     rounded=True,         # sudut node membulat
-#     fontsize=8,
-#     ax=ax1,
-#     impurity=True,        # tampilkan nilai Gini
-#     proportion=False
-# )
-# ax1.set_title('Pohon Keputusan — Grading Kopi Arabika (SCA GACCS)',
-#               fontsize=14, fontweight='bold', pad=12)
-
-# # ── 7B: Confusion Matrix ─────────────────────────────────────
-# ax2 = fig.add_subplot(2, 2, 3)
-# kelas = model.classes_
-# cm = confusion_matrix(y_test, y_pred, labels=kelas)
-
-# sns.heatmap(
-#     cm, annot=True, fmt='d', cmap='YlOrBr',
-#     xticklabels=kelas, yticklabels=kelas,
-#     linewidths=0.5, linecolor='white',
-#     ax=ax2, cbar=False, annot_kws={'size': 13}
-# )
-# ax2.set_xlabel('Prediksi Model', fontsize=11)
-# ax2.set_ylabel('Label Asli', fontsize=11)
-# ax2.set_title('Confusion Matrix\n(diagonal = prediksi benar)', fontsize=12, fontweight='bold')
-# # Cara baca: baris = kelas asli, kolom = prediksi
-# # Angka di diagonal = prediksi BENAR
-# # Angka di luar diagonal = prediksi SALAH (misclassified)
-
-# # ── 7C: Feature Importance ───────────────────────────────────
-# ax3 = fig.add_subplot(2, 2, 4)
-# imp_sorted = importance_df[importance_df['Importance'] > 0]
-# colors = ['#2E7D32' if imp > 0.1 else '#81C784' for imp in imp_sorted['Importance']]
-# bars = ax3.barh(imp_sorted['Fitur'], imp_sorted['Importance'], color=colors, edgecolor='white')
-
-# # Tambahkan label nilai di tiap bar
-# for bar, val in zip(bars, imp_sorted['Importance']):
-#     ax3.text(bar.get_width() + 0.002, bar.get_y() + bar.get_height()/2,
-#              f'{val:.4f}', va='center', fontsize=9)
-
-# ax3.set_xlabel('Importance Score', fontsize=11)
-# ax3.set_title('Feature Importance\n(fitur paling berpengaruh di atas)',
-#               fontsize=12, fontweight='bold')
-# ax3.set_xlim(0, imp_sorted['Importance'].max() * 1.2)
-# ax3.invert_yaxis()  # fitur terpenting di atas
-# ax3.axvline(x=0.1, color='red', linestyle='--', alpha=0.4, label='threshold 0.1')
-# ax3.legend(fontsize=9)
-
-# plt.tight_layout(pad=3)
-# plt.savefig('/mnt/user-data/outputs/decision_tree_kopi.png',
-#             dpi=150, bbox_inches='tight', facecolor='#FAFAFA')
-# plt.close()
-# print("Visualisasi disimpan!")
-
-# ── STEP 8: ATURAN IF-THEN DARI POHON ───────────────────────
+# ── STEP 7: ATURAN IF-THEN DARI MODEL ───────────────────────
 print("\n" + "=" * 60)
-print("STEP 8: ATURAN IF-THEN YANG DIPELAJARI MODEL")
+print("STEP 7: ATURAN IF-THEN YANG DIPELAJARI MODEL")
 print("=" * 60)
-print("(Ini yang jadi bahan pembahasan di paper lo)\n")
 rules = export_text(model, feature_names=FITUR)
 print(rules)
 # |--- berarti percabangan (node)
